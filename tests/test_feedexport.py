@@ -22,7 +22,7 @@ from scrapy.extensions.feedexport import (
     IFeedStorage, FileFeedStorage, FTPFeedStorage,
     S3FeedStorage, StdoutFeedStorage
 )
-from scrapy.utils.test import assert_aws_environ, get_s3_content_and_delete
+from scrapy.utils.test import assert_aws_environ, get_s3_content_and_delete, get_crawler
 from scrapy.utils.python import to_native_str
 
 
@@ -96,15 +96,25 @@ class S3FeedStorageTest(unittest.TestCase):
             import boto
         except ImportError:
             raise unittest.SkipTest("S3FeedStorage requires boto")
-        settings = Settings({'AWS_ACCESS_KEY_ID': 'settings_key',
-                             'AWS_SECRET_ACCESS_KEY': 'settings_secret'})
+        aws_credentials = {'AWS_ACCESS_KEY_ID': 'settings_key',
+                           'AWS_SECRET_ACCESS_KEY': 'settings_secret'}
+        settings = Settings(aws_credentials)
+        crawler = get_crawler(settings_dict=aws_credentials)
+        # Instantiate with crawler
+        storage = S3FeedStorage.from_crawler(crawler,
+                                             's3://mybucket/export.csv')
+        self.assertEqual(storage.access_key, 'settings_key')
+        self.assertEqual(storage.secret_key, 'settings_secret')
+        # Instantiate directly
         storage = S3FeedStorage('s3://mybucket/export.csv', settings)
         self.assertEqual(storage.access_key, 'settings_key')
         self.assertEqual(storage.secret_key, 'settings_secret')
+        # URI priority > settings priority
         storage = S3FeedStorage('s3://uri_key:uri_secret@mybucket/export.csv',
                                 settings)
         self.assertEqual(storage.access_key, 'uri_key')
         self.assertEqual(storage.secret_key, 'uri_secret')
+        # Backwards compatibility for initialising without settings
         with warnings.catch_warnings(record=True) as w:
             with mock.patch('scrapy.conf.settings', new=settings, create=True):
                 storage = S3FeedStorage('s3://mybucket/export.csv')

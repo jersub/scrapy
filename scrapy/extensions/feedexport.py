@@ -129,6 +129,7 @@ class S3FeedStorage(BlockingFeedStorage):
             import boto
             self.connect_s3 = boto.connect_s3
 
+    @classmethod
     def from_crawler(cls, crawler, uri):
         return cls(uri, crawler.settings)
 
