@@ -92,6 +92,10 @@ class FTPFeedStorageTest(unittest.TestCase):
 class S3FeedStorageTest(unittest.TestCase):
 
     def test_parse_credentials(self):
+        try:
+            import boto
+        except ImportError:
+            raise unittest.SkipTest("S3FeedStorage requires boto")
         settings = Settings({'AWS_ACCESS_KEY_ID': 'settings_key',
                              'AWS_SECRET_ACCESS_KEY': 'settings_secret'})
         storage = S3FeedStorage('s3://mybucket/export.csv', settings)
