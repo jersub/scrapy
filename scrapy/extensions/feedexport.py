@@ -101,8 +101,18 @@ class FileFeedStorage(object):
 
 class S3FeedStorage(BlockingFeedStorage):
 
-    def __init__(self, uri):
-        from scrapy.conf import settings
+    def __init__(self, uri, settings=None):
+        if settings is None:
+            import warnings
+            from scrapy.exceptions import ScrapyDeprecationWarning
+            warnings.warn(
+                "Initialising `scrapy.extensions.feedexport.S3FeedStorage` "
+                "without settings is deprecated. Please supply settings or use "
+                "the `from_crawler()` constructor.",
+                category=ScrapyDeprecationWarning,
+                stacklevel=2
+            )
+            from scrapy.conf import settings
         u = urlparse(uri)
         self.bucketname = u.hostname
         self.access_key = u.username or settings['AWS_ACCESS_KEY_ID']
@@ -118,6 +128,9 @@ class S3FeedStorage(BlockingFeedStorage):
         else:
             import boto
             self.connect_s3 = boto.connect_s3
+
+    def from_crawler(cls, crawler, uri):
+        return cls(uri, crawler.settings)
 
     def _store_in_thread(self, file):
         file.seek(0)
