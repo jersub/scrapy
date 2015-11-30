@@ -91,6 +91,8 @@ class FTPFeedStorageTest(unittest.TestCase):
 
 class S3FeedStorageTest(unittest.TestCase):
 
+    @mock.patch('scrapy.conf.settings', new={'AWS_ACCESS_KEY_ID': 'conf_key',
+                'AWS_SECRET_ACCESS_KEY': 'conf_secret'}, create=True)
     def test_parse_credentials(self):
         try:
             import boto
@@ -98,7 +100,6 @@ class S3FeedStorageTest(unittest.TestCase):
             raise unittest.SkipTest("S3FeedStorage requires boto")
         aws_credentials = {'AWS_ACCESS_KEY_ID': 'settings_key',
                            'AWS_SECRET_ACCESS_KEY': 'settings_secret'}
-        settings = Settings(aws_credentials)
         crawler = get_crawler(settings_dict=aws_credentials)
         # Instantiate with crawler
         storage = S3FeedStorage.from_crawler(crawler,
@@ -106,21 +107,23 @@ class S3FeedStorageTest(unittest.TestCase):
         self.assertEqual(storage.access_key, 'settings_key')
         self.assertEqual(storage.secret_key, 'settings_secret')
         # Instantiate directly
-        storage = S3FeedStorage('s3://mybucket/export.csv', settings)
+        storage = S3FeedStorage('s3://mybucket/export.csv',
+                                aws_credentials['AWS_ACCESS_KEY_ID'],
+                                aws_credentials['AWS_SECRET_ACCESS_KEY'])
         self.assertEqual(storage.access_key, 'settings_key')
         self.assertEqual(storage.secret_key, 'settings_secret')
         # URI priority > settings priority
         storage = S3FeedStorage('s3://uri_key:uri_secret@mybucket/export.csv',
-                                settings)
+                                aws_credentials['AWS_ACCESS_KEY_ID'],
+                                aws_credentials['AWS_SECRET_ACCESS_KEY'])
         self.assertEqual(storage.access_key, 'uri_key')
         self.assertEqual(storage.secret_key, 'uri_secret')
         # Backwards compatibility for initialising without settings
         with warnings.catch_warnings(record=True) as w:
-            with mock.patch('scrapy.conf.settings', new=settings, create=True):
-                storage = S3FeedStorage('s3://mybucket/export.csv')
-                self.assertEqual(storage.access_key, 'settings_key')
-                self.assertEqual(storage.secret_key, 'settings_secret')
-            self.assertTrue('without settings' in str(w[-1].message))
+            storage = S3FeedStorage('s3://mybucket/export.csv')
+            self.assertEqual(storage.access_key, 'conf_key')
+            self.assertEqual(storage.secret_key, 'conf_secret')
+            self.assertTrue('without AWS keys' in str(w[-1].message))
 
     @defer.inlineCallbacks
     def test_store(self):

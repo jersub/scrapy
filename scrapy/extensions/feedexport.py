@@ -101,22 +101,29 @@ class FileFeedStorage(object):
 
 class S3FeedStorage(BlockingFeedStorage):
 
-    def __init__(self, uri, settings=None):
-        if settings is None:
+    def __init__(self, uri, access_key=None, secret_key=None):
+        # BEGIN Backwards compatibility for initialising without keys (and
+        # without using from_crawler)
+        from scrapy.conf import settings
+        no_defaults = access_key is None and secret_key is None
+        if no_defaults and ('AWS_ACCESS_KEY_ID' in settings or
+                            'AWS_SECRET_ACCESS_KEY' in settings):
             import warnings
             from scrapy.exceptions import ScrapyDeprecationWarning
             warnings.warn(
                 "Initialising `scrapy.extensions.feedexport.S3FeedStorage` "
-                "without settings is deprecated. Please supply settings or use "
-                "the `from_crawler()` constructor.",
+                "without AWS keys is deprecated. Please supply credentials or "
+                "use the `from_crawler()` constructor.",
                 category=ScrapyDeprecationWarning,
                 stacklevel=2
             )
-            from scrapy.conf import settings
+            access_key = settings['AWS_ACCESS_KEY_ID']
+            secret_key = settings['AWS_SECRET_ACCESS_KEY']
+        # END Backwards compatibility
         u = urlparse(uri)
         self.bucketname = u.hostname
-        self.access_key = u.username or settings['AWS_ACCESS_KEY_ID']
-        self.secret_key = u.password or settings['AWS_SECRET_ACCESS_KEY']
+        self.access_key = u.username or access_key
+        self.secret_key = u.password or secret_key
         self.is_botocore = is_botocore()
         self.keyname = u.path[1:]  # remove first "/"
         if self.is_botocore:
@@ -131,7 +138,8 @@ class S3FeedStorage(BlockingFeedStorage):
 
     @classmethod
     def from_crawler(cls, crawler, uri):
-        return cls(uri, crawler.settings)
+        return cls(uri, crawler.settings['AWS_ACCESS_KEY_ID'],
+                   crawler.settings['AWS_SECRET_ACCESS_KEY'])
 
     def _store_in_thread(self, file):
         file.seek(0)
