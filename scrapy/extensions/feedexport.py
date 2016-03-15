@@ -46,6 +46,10 @@ class IFeedStorage(Interface):
 @implementer(IFeedStorage)
 class BlockingFeedStorage(object):
 
+    @classmethod
+    def from_crawler(cls, crawler, *args, **kwargs):
+        return cls(*args, **kwargs)
+
     def open(self, spider):
         return TemporaryFile(prefix='feed-')
 
@@ -64,6 +68,10 @@ class StdoutFeedStorage(object):
             _stdout = sys.stdout if six.PY2 else sys.stdout.buffer
         self._stdout = _stdout
 
+    @classmethod
+    def from_crawler(cls, crawler, *args, **kwargs):
+        return cls(*args, **kwargs)
+
     def open(self, spider):
         return self._stdout
 
@@ -76,6 +84,10 @@ class FileFeedStorage(object):
 
     def __init__(self, uri):
         self.path = file_uri_to_path(uri)
+
+    @classmethod
+    def from_crawler(cls, crawler, *args, **kwargs):
+        return cls(*args, **kwargs)
 
     def open(self, spider):
         dirname = os.path.dirname(self.path)
@@ -152,8 +164,9 @@ class SpiderSlot(object):
 
 class FeedExporter(object):
 
-    def __init__(self, settings):
-        self.settings = settings
+    def __init__(self, crawler):
+        self.crawler = crawler
+        settings = crawler.settings
         self.urifmt = settings['FEED_URI']
         if not self.urifmt:
             raise NotConfigured
@@ -171,7 +184,7 @@ class FeedExporter(object):
 
     @classmethod
     def from_crawler(cls, crawler):
-        o = cls(crawler.settings)
+        o = cls(crawler)
         crawler.signals.connect(o.open_spider, signals.spider_opened)
         crawler.signals.connect(o.close_spider, signals.spider_closed)
         crawler.signals.connect(o.item_scraped, signals.item_scraped)
@@ -209,7 +222,8 @@ class FeedExporter(object):
         return item
 
     def _load_components(self, setting_prefix):
-        conf = without_none_values(self.settings.getwithbase(setting_prefix))
+        settings = self.crawler.settings
+        conf = without_none_values(settings.getwithbase(setting_prefix))
         d = {}
         for k, v in conf.items():
             try:
@@ -240,7 +254,8 @@ class FeedExporter(object):
         return self.exporters[self.format](*args, **kwargs)
 
     def _get_storage(self, uri):
-        return self.storages[urlparse(uri).scheme](uri)
+        cls = self.storages[urlparse(uri).scheme]
+        return cls.from_crawler(self.crawler, uri)
 
     def _get_uri_params(self, spider):
         params = {}
